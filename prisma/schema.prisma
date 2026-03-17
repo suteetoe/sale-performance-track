@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SaleOrder {
+  doc_no   String   @id @db.VarChar(255)
+  doc_date DateTime @db.Date
+  doc_time String   @db.VarChar(10)
+  refs     SaleInvoiceRef[]
+
+  @@map("sale_order")
+}
+
+model SaleInvoice {
+  doc_no     String               @id @db.VarChar(255)
+  doc_date   DateTime             @db.Date
+  doc_time   String               @db.VarChar(10)
+  refs       SaleInvoiceRef[]
+  deliveries DeliveryOrderDetail[]
+
+  @@map("sale_invoice")
+}
+
+model SaleInvoiceRef {
+  id         Int         @id @default(autoincrement())
+  doc_no     String      @db.VarChar(50)
+  doc_ref_no String      @db.VarChar(50)
+  invoice    SaleInvoice @relation(fields: [doc_no], references: [doc_no])
+  saleOrder  SaleOrder   @relation(fields: [doc_ref_no], references: [doc_no])
+
+  @@map("sale_invoice_ref")
+}
+
+model DeliveryOrder {
+  doc_no   String                @id @db.VarChar(255)
+  doc_date DateTime              @db.Date
+  doc_time String                @db.VarChar(10)
+  details  DeliveryOrderDetail[]
+
+  @@map("delivery_order")
+}
+
+model DeliveryOrderDetail {
+  id              Int           @id @default(autoincrement())
+  doc_no          String        @db.VarChar(255)
+  delivery_doc_no String        @db.VarChar(255)
+  delivery        DeliveryOrder @relation(fields: [doc_no], references: [doc_no])
+  invoice         SaleInvoice   @relation(fields: [delivery_doc_no], references: [doc_no])
+
+  @@map("delivery_order_detail")
+}

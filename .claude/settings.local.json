@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pkill -f \"create-next-app\")",
+      "Bash(npm install)",
+      "Bash(pnpm --version)",
+      "Bash(pnpm install)",
+      "Bash(pnpm approve-builds)",
+      "Bash(pkill -f \"pnpm approve-builds\")",
+      "Bash(pnpm run build)",
+      "Bash(pnpm add -D autoprefixer)"
+    ]
+  }
+}
