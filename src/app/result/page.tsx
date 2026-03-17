@@ -1,41 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import PerformanceCard from "@/components/PerformanceCard";
-
-interface DocInfo {
-  doc_no: string;
-  doc_date: string;
-  doc_time: string;
-  datetime: string;
-}
-
-interface PerformanceData {
-  invoiceNo: string;
-  startDocType: "sale_order" | "sale_invoice";
-  startDoc: DocInfo;
-  deliveryOrder: DocInfo;
-  duration: {
-    days: number;
-    hours: number;
-    minutes: number;
-    totalMinutes: number;
-    label: string;
-  };
-}
-
-interface ErrorData {
-  error: string;
-  message: string;
-}
-
-async function getPerformance(invoiceNo: string): Promise<PerformanceData | ErrorData> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
-  const res = await fetch(
-    `${baseUrl}/api/performance?invoice=${encodeURIComponent(invoiceNo)}`,
-    { cache: "no-store" }
-  );
-  return res.json();
-}
+import { getPerformance } from "@/lib/getPerformance";
 
 export default async function ResultPage({
   searchParams,
@@ -47,8 +13,7 @@ export default async function ResultPage({
   // ไม่มี invoice param → redirect กลับหน้าหลัก
   if (!invoice) redirect("/");
 
-  const invoiceNo = invoice;
-  const data = await getPerformance(invoiceNo);
+  const data = await getPerformance(invoice);
 
   return (
     <div className="flex flex-col items-center gap-6 w-full max-w-sm">
@@ -69,7 +34,7 @@ export default async function ResultPage({
             {data.error === "NO_DELIVERY" ? "📦" : "🔍"}
           </div>
           <p className="font-semibold text-gray-800">{data.message}</p>
-          <p className="text-sm text-gray-400 mt-1">Invoice: {invoiceNo}</p>
+          <p className="text-sm text-gray-400 mt-1">Invoice: {invoice}</p>
         </div>
       ) : (
         /* Success state */
