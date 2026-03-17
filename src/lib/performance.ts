@@ -6,13 +6,27 @@ export interface Duration {
   label: string;
 }
 
+// doc_time ในฐานข้อมูลเก็บเป็นเวลาไทย (UTC+7)
+const TZ_OFFSET_HOURS = 7;
+
 /**
- * รวม doc_date (Date) + doc_time (string "HH:MM:SS") เป็น Date object
+ * รวม doc_date (Date) + doc_time (string "HH:MM" หรือ "HH:MM:SS") เป็น Date object (UTC)
+ *
+ * doc_date จาก Prisma = midnight UTC ของวันนั้น
+ * doc_time = เวลาในโซน UTC+7 (เวลาไทย)
+ * → ใช้ setUTCHours และหัก offset 7 ชั่วโมง เพื่อให้ได้ UTC ที่ถูกต้อง
+ *
+ * ตัวอย่าง: doc_time "09:33" ICT → 02:33 UTC
  */
 export function combineDateTime(date: Date, time: string): Date {
   const [hours, minutes, seconds] = time.split(":").map(Number);
-  const result = new Date(date);
-  result.setHours(hours ?? 0, minutes ?? 0, seconds ?? 0, 0);
+  const result = new Date(date); // copy midnight UTC
+  result.setUTCHours(
+    (hours ?? 0) - TZ_OFFSET_HOURS,
+    minutes ?? 0,
+    seconds ?? 0,
+    0,
+  );
   return result;
 }
 
