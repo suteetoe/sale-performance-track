@@ -10,7 +10,6 @@ export default async function ResultPage({
 }) {
   const { invoice } = await searchParams;
 
-  // ไม่มี invoice param → redirect กลับหน้าหลัก
   if (!invoice) redirect("/");
 
   const data = await getPerformance(invoice);
@@ -28,20 +27,20 @@ export default async function ResultPage({
       </div>
 
       {"error" in data ? (
-        /* Error state */
+        /* Invoice ไม่พบในระบบ */
         <div className="w-full bg-white rounded-2xl shadow-md p-6 text-center">
-          <div className="text-4xl mb-3">
-            {data.error === "NO_DELIVERY" ? "📦" : "🔍"}
-          </div>
+          <div className="text-4xl mb-3">🔍</div>
           <p className="font-semibold text-gray-800">{data.message}</p>
           <p className="text-sm text-gray-400 mt-1">Invoice: {invoice}</p>
         </div>
       ) : (
-        /* Success state */
+        /* พบข้อมูล — completed หรือ in_progress */
         <PerformanceCard
           invoiceNo={data.invoiceNo}
+          status={data.status}
           startDocType={data.startDocType}
-          startDoc={data.startDoc}
+          saleOrder={data.saleOrder}
+          invoice={data.invoice}
           deliveryOrder={data.deliveryOrder}
           duration={data.duration}
         />

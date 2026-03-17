@@ -14,9 +14,7 @@ export async function GET(req: NextRequest) {
   const result = await getPerformance(invoiceNo);
 
   if ("error" in result) {
-    const status = result.error === "NOT_FOUND" ? 404
-                 : result.error === "NO_DELIVERY" ? 404
-                 : 400;
+    const status = result.error === "NOT_FOUND" ? 404 : 400;
     return NextResponse.json(result, { status });
   }
 

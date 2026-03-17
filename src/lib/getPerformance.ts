@@ -13,14 +13,16 @@ export interface DocInfo {
 
 export interface PerformanceResult {
   invoiceNo: string;
-  startDocType: "sale_order" | "sale_invoice";
-  startDoc: DocInfo;
-  deliveryOrder: DocInfo;
-  duration: Duration;
+  status: "completed" | "in_progress";
+  startDocType: "sale_order" | "sale_invoice"; // จุดเริ่มต้นที่ใช้คำนวณ duration
+  saleOrder?: DocInfo;   // มีเฉพาะเมื่อพบ Sale Order
+  invoice: DocInfo;      // มีเสมอ
+  deliveryOrder?: DocInfo; // มีเฉพาะเมื่อ completed
+  duration: Duration;    // SO (หรือ Invoice) → Delivery (หรือ NOW)
 }
 
 export interface PerformanceError {
-  error: "NOT_FOUND" | "NO_DELIVERY" | "NO_SALE_ORDER" | "BAD_REQUEST";
+  error: "NOT_FOUND" | "BAD_REQUEST";
   message: string;
 }
 
@@ -36,12 +38,21 @@ export async function getPerformance(invoiceNo: string): Promise<GetPerformanceR
     return { error: "NOT_FOUND", message: `ไม่พบ Invoice หมายเลข ${invoiceNo}` };
   }
 
+  const invoiceDateTime = combineDateTime(invoice.doc_date, invoice.doc_time);
+  const invoiceDocInfo: DocInfo = {
+    doc_no:   invoice.doc_no,
+    doc_date: invoice.doc_date,
+    doc_time: invoice.doc_time,
+    datetime: invoiceDateTime.toISOString(),
+  };
+
   // 2. พยายามหา Sale Order จาก ap_ar_trans_detail
   const apArDetail = await prisma.apArTransDetail.findFirst({
     where: { doc_no: invoiceNo },
   });
 
-  let startDoc: typeof invoice;
+  let saleOrderDocInfo: DocInfo | undefined;
+  let startDateTime: Date;
   let startDocType: "sale_order" | "sale_invoice";
 
   if (apArDetail) {
@@ -49,16 +60,22 @@ export async function getPerformance(invoiceNo: string): Promise<GetPerformanceR
       where: { doc_no: apArDetail.billing_no, trans_flag: TRANS_FLAG_SALE_ORDER },
     });
     if (saleOrder) {
-      startDoc = saleOrder;
-      startDocType = "sale_order";
+      const soDateTime = combineDateTime(saleOrder.doc_date, saleOrder.doc_time);
+      saleOrderDocInfo = {
+        doc_no:   saleOrder.doc_no,
+        doc_date: saleOrder.doc_date,
+        doc_time: saleOrder.doc_time,
+        datetime: soDateTime.toISOString(),
+      };
+      startDateTime = soDateTime;
+      startDocType  = "sale_order";
     } else {
-      startDoc = invoice;
-      startDocType = "sale_invoice";
+      startDateTime = invoiceDateTime;
+      startDocType  = "sale_invoice";
     }
   } else {
-    // ไม่พบ link → fallback ใช้ invoice เป็นจุดเริ่มต้น
-    startDoc = invoice;
-    startDocType = "sale_invoice";
+    startDateTime = invoiceDateTime;
+    startDocType  = "sale_invoice";
   }
 
   // 3. หา Delivery Order จาก pp_shipment_detail
@@ -68,23 +85,29 @@ export async function getPerformance(invoiceNo: string): Promise<GetPerformanceR
   });
 
   if (!deliveryDetail) {
-    return { error: "NO_DELIVERY", message: `ยังไม่มีเอกสาร Delivery สำหรับ Invoice ${invoiceNo}` };
+    // ยังไม่มี Delivery → in_progress: คำนวณ duration ถึงปัจจุบัน
+    const durationToNow = calcDuration(startDateTime, new Date());
+    return {
+      invoiceNo,
+      status:      "in_progress",
+      startDocType,
+      saleOrder:   saleOrderDocInfo,
+      invoice:     invoiceDocInfo,
+      duration:    durationToNow,
+    };
   }
 
+  // 4. completed
   const { delivery } = deliveryDetail;
-  const startDateTime = combineDateTime(startDoc.doc_date, startDoc.doc_time);
-  const endDateTime   = combineDateTime(delivery.doc_date, delivery.doc_time);
-  const duration      = calcDuration(startDateTime, endDateTime);
+  const endDateTime = combineDateTime(delivery.doc_date, delivery.doc_time);
+  const duration    = calcDuration(startDateTime, endDateTime);
 
   return {
     invoiceNo,
+    status:      "completed",
     startDocType,
-    startDoc: {
-      doc_no:   startDoc.doc_no,
-      doc_date: startDoc.doc_date,
-      doc_time: startDoc.doc_time,
-      datetime: startDateTime.toISOString(),
-    },
+    saleOrder:   saleOrderDocInfo,
+    invoice:     invoiceDocInfo,
     deliveryOrder: {
       doc_no:   delivery.doc_no,
       doc_date: delivery.doc_date,
