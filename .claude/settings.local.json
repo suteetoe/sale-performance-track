@@ -8,7 +8,9 @@
       "Bash(pnpm approve-builds)",
       "Bash(pkill -f \"pnpm approve-builds\")",
       "Bash(pnpm run build)",
-      "Bash(pnpm add -D autoprefixer)"
+      "Bash(pnpm add -D autoprefixer)",
+      "Bash(ls /Users/toe/DEV/IMEX/sale-performance-track/src/app/api/performance/[invoiceNo]/)",
+      "Bash(pnpm run db:generate)"
     ]
   }
 }

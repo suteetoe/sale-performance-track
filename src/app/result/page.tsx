@@ -1,20 +1,19 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import PerformanceCard from "@/components/PerformanceCard";
 
+interface DocInfo {
+  doc_no: string;
+  doc_date: string;
+  doc_time: string;
+  datetime: string;
+}
+
 interface PerformanceData {
   invoiceNo: string;
-  saleOrder: {
-    doc_no: string;
-    doc_date: string;
-    doc_time: string;
-    datetime: string;
-  };
-  deliveryOrder: {
-    doc_no: string;
-    doc_date: string;
-    doc_time: string;
-    datetime: string;
-  };
+  startDocType: "sale_order" | "sale_invoice";
+  startDoc: DocInfo;
+  deliveryOrder: DocInfo;
   duration: {
     days: number;
     hours: number;
@@ -32,20 +31,24 @@ interface ErrorData {
 async function getPerformance(invoiceNo: string): Promise<PerformanceData | ErrorData> {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
   const res = await fetch(
-    `${baseUrl}/api/performance/${encodeURIComponent(invoiceNo)}`,
+    `${baseUrl}/api/performance?invoice=${encodeURIComponent(invoiceNo)}`,
     { cache: "no-store" }
   );
   return res.json();
 }
 
 export default async function ResultPage({
-  params,
+  searchParams,
 }: {
-  params: Promise<{ invoiceNo: string }>;
+  searchParams: Promise<{ invoice?: string }>;
 }) {
-  const { invoiceNo } = await params;
-  const decodedInvoiceNo = decodeURIComponent(invoiceNo);
-  const data = await getPerformance(decodedInvoiceNo);
+  const { invoice } = await searchParams;
+
+  // ไม่มี invoice param → redirect กลับหน้าหลัก
+  if (!invoice) redirect("/");
+
+  const invoiceNo = invoice;
+  const data = await getPerformance(invoiceNo);
 
   return (
     <div className="flex flex-col items-center gap-6 w-full max-w-sm">
@@ -66,13 +69,14 @@ export default async function ResultPage({
             {data.error === "NO_DELIVERY" ? "📦" : "🔍"}
           </div>
           <p className="font-semibold text-gray-800">{data.message}</p>
-          <p className="text-sm text-gray-400 mt-1">Invoice: {decodedInvoiceNo}</p>
+          <p className="text-sm text-gray-400 mt-1">Invoice: {invoiceNo}</p>
         </div>
       ) : (
         /* Success state */
         <PerformanceCard
           invoiceNo={data.invoiceNo}
-          saleOrder={data.saleOrder}
+          startDocType={data.startDocType}
+          startDoc={data.startDoc}
           deliveryOrder={data.deliveryOrder}
           duration={data.duration}
         />

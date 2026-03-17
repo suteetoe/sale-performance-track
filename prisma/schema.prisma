@@ -7,50 +7,46 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model SaleOrder {
-  doc_no   String   @id @db.VarChar(255)
-  doc_date DateTime @db.Date
-  doc_time String   @db.VarChar(10)
-  refs     SaleInvoiceRef[]
+// Sale Order (trans_flag=36) และ Sale Invoice (trans_flag=44) อยู่ใน table เดียวกัน
+model IcTrans {
+  doc_no     String   @db.VarChar(255)
+  trans_flag Int
+  doc_date   DateTime @db.Date
+  doc_time   String   @db.VarChar(10)
 
-  @@map("sale_order")
+  @@id([doc_no, trans_flag])
+  @@map("ic_trans")
 }
 
-model SaleInvoice {
-  doc_no     String               @id @db.VarChar(255)
-  doc_date   DateTime             @db.Date
-  doc_time   String               @db.VarChar(10)
-  refs       SaleInvoiceRef[]
-  deliveries DeliveryOrderDetail[]
+// เชื่อมโยง Sale Invoice → Sale Order
+// doc_no     = Sale Invoice doc_no (trans_flag=44)
+// billing_no = Sale Order doc_no   (trans_flag=36)
+model ApArTransDetail {
+  roworder   Int    @id @default(autoincrement())
+  doc_no     String @db.VarChar(50)
+  billing_no String @db.VarChar(50)
 
-  @@map("sale_invoice")
+  @@map("ap_ar_trans_detail")
 }
 
-model SaleInvoiceRef {
-  id         Int         @id @default(autoincrement())
-  doc_no     String      @db.VarChar(50)
-  doc_ref_no String      @db.VarChar(50)
-  invoice    SaleInvoice @relation(fields: [doc_no], references: [doc_no])
-  saleOrder  SaleOrder   @relation(fields: [doc_ref_no], references: [doc_no])
-
-  @@map("sale_invoice_ref")
-}
-
+// Delivery Order
 model DeliveryOrder {
   doc_no   String                @id @db.VarChar(255)
   doc_date DateTime              @db.Date
   doc_time String                @db.VarChar(10)
   details  DeliveryOrderDetail[]
 
-  @@map("delivery_order")
+  @@map("pp_shipment")
 }
 
+// เชื่อมโยง Delivery → Sale Invoice
+// doc_no     = Delivery Order doc_no
+// ref_doc_no = Sale Invoice doc_no (trans_flag=44)
 model DeliveryOrderDetail {
-  id              Int           @id @default(autoincrement())
-  doc_no          String        @db.VarChar(255)
-  delivery_doc_no String        @db.VarChar(255)
-  delivery        DeliveryOrder @relation(fields: [doc_no], references: [doc_no])
-  invoice         SaleInvoice   @relation(fields: [delivery_doc_no], references: [doc_no])
+  roworder   Int           @id @default(autoincrement())
+  doc_no     String        @db.VarChar(255)
+  ref_doc_no String        @db.VarChar(255)
+  delivery   DeliveryOrder @relation(fields: [doc_no], references: [doc_no])
 
-  @@map("delivery_order_detail")
+  @@map("pp_shipment_detail")
 }

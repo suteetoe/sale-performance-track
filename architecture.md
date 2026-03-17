@@ -14,25 +14,28 @@ Web application สำหรับวัด Sale Performance โดยนับ�
 │                    User Action                          │
 │         Scan QR Code หรือ Manual Input (Invoice No.)    │
 └───────────────────────┬─────────────────────────────────┘
-                        │ Invoice No. (e.g. INV/2024/00123)
+                        │ Invoice No.
                         ▼
 ┌─────────────────────────────────────────────────────────┐
 │                  API Route                              │
 │           GET /api/performance/[invoiceNo]              │
 └───────────────────────┬─────────────────────────────────┘
                         │
-          ┌─────────────┼─────────────┐
-          ▼             ▼             ▼
-   sale_invoice   sale_invoice_ref   delivery_order_detail
-                        │                     │
-                        ▼                     ▼
-                   sale_order          delivery_order
-                  (Start Time)         (End Time)
-                        │                     │
-                        └─────────┬───────────┘
-                                  ▼
-                    Performance = End - Start
-                    (Duration in days/hours/minutes)
+          ┌─────────────┼──────────────────────┐
+          ▼             ▼                       ▼
+    ic_trans      ap_ar_trans_detail      pp_shipment_detail
+  (trans_flag=44)  doc_no=Invoice No.      ref_doc_no=Invoice No.
+   [ตรวจสอบ]        billing_no=SO No.            │
+                        │                       ▼
+                        ▼                  pp_shipment
+                    ic_trans              (End Time)
+                 (trans_flag=36)
+                  (Start Time)
+                        │                       │
+                        └──────────┬────────────┘
+                                   ▼
+                     Performance = End - Start
+                     (Duration in days/hours/minutes)
 ```
 
 ---
@@ -40,44 +43,43 @@ Web application สำหรับวัด Sale Performance โดยนับ�
 ## Database Schema (Existing PostgreSQL)
 
 ```dbml
-Table sale_order {
-  doc_no   varchar(255) [pk]
-  doc_date date
-  doc_time varchar(10)           -- format: "HH:MM:SS"
+-- Sale Order (trans_flag=36) และ Sale Invoice (trans_flag=44) อยู่ใน table เดียวกัน
+Table ic_trans {
+  doc_no     varchar(255) [pk]
+  trans_flag int          [pk]   -- 36=Sale Order, 44=Sale Invoice
+  doc_date   date
+  doc_time   varchar(10)         -- format: "HH:MM:SS"
 }
 
-Table sale_invoice {
+-- เชื่อมโยง Sale Invoice → Sale Order
+Table ap_ar_trans_detail {
+  roworder   int          [pk, increment]
+  doc_no     varchar(50)  [ref: > ic_trans.doc_no]   -- Sale Invoice doc_no (trans_flag=44)
+  billing_no varchar(50)  [ref: > ic_trans.doc_no]   -- Sale Order doc_no   (trans_flag=36)
+}
+
+-- Delivery Order
+Table pp_shipment {
   doc_no   varchar(255) [pk]
   doc_date date
   doc_time varchar(10)
 }
 
-Table sale_invoice_ref {
-  id         int          [pk, increment]
-  doc_no     varchar(50)  [ref: > sale_invoice.doc_no]   -- Invoice No.
-  doc_ref_no varchar(50)  [ref: > sale_order.doc_no]     -- Sale Order No.
-}
-
-Table delivery_order {
-  doc_no   varchar(255) [pk]
-  doc_date date
-  doc_time varchar(10)
-}
-
-Table delivery_order_detail {
-  id              int          [pk, increment]
-  doc_no          varchar(255) [ref: > delivery_order.doc_no]
-  delivery_doc_no varchar(255) [ref: > sale_invoice.doc_no]  -- Invoice No.
+-- เชื่อมโยง Delivery → Sale Invoice
+Table pp_shipment_detail {
+  roworder   int          [pk, increment]
+  doc_no     varchar(255) [ref: > pp_shipment.doc_no]  -- Delivery Order doc_no
+  ref_doc_no varchar(255) [ref: > ic_trans.doc_no]     -- Sale Invoice doc_no (trans_flag=44)
 }
 ```
 
 ### Relationships
-- `sale_invoice` ←→ `sale_order` : ผ่าน `sale_invoice_ref`
-  - `sale_invoice_ref.doc_no` = Invoice No.
-  - `sale_invoice_ref.doc_ref_no` = Sale Order No.
-- `delivery_order` ←→ `sale_invoice` : ผ่าน `delivery_order_detail`
-  - `delivery_order_detail.doc_no` = Delivery Order No.
-  - `delivery_order_detail.delivery_doc_no` = Invoice No.
+- `ic_trans` (Invoice, trans_flag=44) ←→ `ic_trans` (Sale Order, trans_flag=36) : ผ่าน `ap_ar_trans_detail`
+  - `ap_ar_trans_detail.doc_no`     = Invoice No. (trans_flag=44)
+  - `ap_ar_trans_detail.billing_no` = Sale Order No. (trans_flag=36)
+- `pp_shipment` ←→ `ic_trans` (Invoice) : ผ่าน `pp_shipment_detail`
+  - `pp_shipment_detail.doc_no`     = Delivery Order doc_no
+  - `pp_shipment_detail.ref_doc_no` = Invoice No. (trans_flag=44)
 
 ---
 
@@ -196,8 +198,8 @@ sale-performance-track/
 ## Performance Measurement
 
 ```
-Start = sale_order.doc_date + sale_order.doc_time
-End   = delivery_order.doc_date + delivery_order.doc_time
+Start = ic_trans.doc_date + doc_time  WHERE doc_no = billing_no AND trans_flag = 36
+End   = pp_shipment.doc_date + doc_time  (linked via pp_shipment_detail.ref_doc_no = invoice_no)
 
 Duration = End - Start
 ```
@@ -208,7 +210,15 @@ Duration = End - Start
 
 | Phase | รายการ | สถานะ |
 |-------|--------|-------|
-| 1 | Project Setup (Next.js + Tailwind + Prisma) | - |
-| 2 | Prisma Schema + API Route | - |
-| 3 | QR Scanner + Manual Input UI | - |
-| 4 | Result Page + Performance Display | - |
+| 1 | Project Setup (Next.js + Tailwind + Prisma) | ✅ |
+| 2 | Prisma Schema + API Route | ✅ |
+| 3 | QR Scanner + Manual Input UI | ✅ |
+| 4 | Result Page + Performance Display | ✅ |
+
+## Schema Change Log
+
+| วันที่ | รายการเปลี่ยนแปลง |
+|--------|-----------------|
+| 2026-03-17 | รวม `sale_order` + `sale_invoice` → `ic_trans` (trans_flag: 36/44) |
+| 2026-03-17 | เปลี่ยน `sale_invoice_ref` → `ap_ar_trans_detail` (billing_no แทน doc_ref_no) |
+| 2026-03-17 | เปลี่ยน `delivery_order` → `pp_shipment`, `delivery_order_detail` → `pp_shipment_detail` |

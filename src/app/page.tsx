@@ -16,7 +16,8 @@ export default function HomePage() {
   const router = useRouter();
 
   const handleResult = (invoiceNo: string) => {
-    router.push(`/result/${encodeURIComponent(invoiceNo)}`);
+    // ส่ง invoiceNo เป็น query param — รองรับ "/" ในเลขเอกสาร (เช่น R6811/80003)
+    router.push(`/result?invoice=${encodeURIComponent(invoiceNo.trim())}`);
   };
 
   return (

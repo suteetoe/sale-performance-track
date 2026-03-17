@@ -9,10 +9,16 @@ interface DocInfo {
 
 interface PerformanceCardProps {
   invoiceNo: string;
-  saleOrder: DocInfo;
+  startDocType: "sale_order" | "sale_invoice";
+  startDoc: DocInfo;
   deliveryOrder: DocInfo;
   duration: Duration;
 }
+
+const START_DOC_LABEL: Record<PerformanceCardProps["startDocType"], string> = {
+  sale_order:   "Sale Order",
+  sale_invoice: "Sale Invoice",
+};
 
 function formatThaiDateTime(datetime: string): string {
   const d = new Date(datetime);
@@ -26,18 +32,20 @@ function formatThaiDateTime(datetime: string): string {
 }
 
 function getDurationColor(totalMinutes: number): string {
-  if (totalMinutes <= 60 * 24) return "text-green-600";       // ≤ 1 วัน
-  if (totalMinutes <= 60 * 24 * 3) return "text-yellow-600";  // ≤ 3 วัน
-  return "text-red-600";                                       // > 3 วัน
+  if (totalMinutes <= 60 * 24)     return "text-green-600";  // ≤ 1 วัน
+  if (totalMinutes <= 60 * 24 * 3) return "text-yellow-600"; // ≤ 3 วัน
+  return "text-red-600";                                      // > 3 วัน
 }
 
 export default function PerformanceCard({
   invoiceNo,
-  saleOrder,
+  startDocType,
+  startDoc,
   deliveryOrder,
   duration,
 }: PerformanceCardProps) {
   const durationColor = getDurationColor(duration.totalMinutes);
+  const startLabel = START_DOC_LABEL[startDocType];
 
   return (
     <div className="w-full max-w-sm bg-white rounded-2xl shadow-md overflow-hidden">
@@ -45,20 +53,23 @@ export default function PerformanceCard({
       <div className="bg-blue-600 px-5 py-4">
         <p className="text-blue-200 text-xs font-medium uppercase tracking-wide">Invoice</p>
         <p className="text-white font-semibold text-lg leading-tight">{invoiceNo}</p>
+        {startDocType === "sale_invoice" && (
+          <p className="text-blue-300 text-xs mt-1">* เริ่มต้นจาก Invoice (ไม่พบ Sale Order)</p>
+        )}
       </div>
 
       {/* Timeline */}
       <div className="px-5 py-5 flex flex-col gap-0">
-        {/* Sale Order */}
+        {/* Start document */}
         <div className="flex gap-4">
           <div className="flex flex-col items-center">
             <div className="w-3 h-3 rounded-full bg-blue-600 mt-1 shrink-0" />
             <div className="w-0.5 flex-1 bg-gray-200 my-1" />
           </div>
           <div className="pb-4">
-            <p className="text-xs text-gray-400 font-medium">Sale Order</p>
-            <p className="font-semibold text-gray-800">{saleOrder.doc_no}</p>
-            <p className="text-sm text-gray-500">{formatThaiDateTime(saleOrder.datetime)}</p>
+            <p className="text-xs text-gray-400 font-medium">{startLabel}</p>
+            <p className="font-semibold text-gray-800">{startDoc.doc_no}</p>
+            <p className="text-sm text-gray-500">{formatThaiDateTime(startDoc.datetime)}</p>
           </div>
         </div>
 
