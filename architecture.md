@@ -23,13 +23,13 @@ Web application สำหรับวัด Sale Performance โดยนับ�
                         │
           ┌─────────────┼──────────────────────┐
           ▼             ▼                       ▼
-    ic_trans      ap_ar_trans_detail      pp_shipment_detail
-  (trans_flag=44)  doc_no=Invoice No.      ref_doc_no=Invoice No.
+    ic_trans      ap_ar_trans_detail      ic_trans_detail
+  (trans_flag=44)  doc_no=Invoice No.      item_code=Invoice No.
    [ตรวจสอบ]        billing_no=SO No.            │
                         │                       ▼
-                        ▼                  pp_shipment
-                    ic_trans              (End Time)
-                 (trans_flag=36)
+                        ▼                   ic_trans
+                    ic_trans             (trans_flag=701)
+                 (trans_flag=36)           (End Time)
                   (Start Time)
                         │                       │
                         └──────────┬────────────┘
@@ -43,12 +43,12 @@ Web application สำหรับวัด Sale Performance โดยนับ�
 ## Database Schema (Existing PostgreSQL)
 
 ```dbml
--- Sale Order (trans_flag=36) และ Sale Invoice (trans_flag=44) อยู่ใน table เดียวกัน
+-- ic_trans เก็บทุกประเภทเอกสาร แยกด้วย trans_flag
 Table ic_trans {
   doc_no     varchar(255) [pk]
-  trans_flag int          [pk]   -- 36=Sale Order, 44=Sale Invoice
+  trans_flag int          [pk]   -- 36=Sale Order | 44=Sale Invoice | 701=Delivery Order
   doc_date   date
-  doc_time   varchar(10)         -- format: "HH:MM:SS"
+  doc_time   varchar(10)         -- format: "HH:MM" (เวลาไทย UTC+7)
 }
 
 -- เชื่อมโยง Sale Invoice → Sale Order
@@ -58,28 +58,21 @@ Table ap_ar_trans_detail {
   billing_no varchar(50)  [ref: > ic_trans.doc_no]   -- Sale Order doc_no   (trans_flag=36)
 }
 
--- Delivery Order
-Table pp_shipment {
-  doc_no   varchar(255) [pk]
-  doc_date date
-  doc_time varchar(10)
-}
-
--- เชื่อมโยง Delivery → Sale Invoice
-Table pp_shipment_detail {
-  roworder   int          [pk, increment]
-  doc_no     varchar(255) [ref: > pp_shipment.doc_no]  -- Delivery Order doc_no
-  ref_doc_no varchar(255) [ref: > ic_trans.doc_no]     -- Sale Invoice doc_no (trans_flag=44)
+-- เชื่อมโยง Delivery Order → Sale Invoice
+Table ic_trans_detail {
+  roworder  int          [pk, increment]
+  doc_no    varchar(255) [ref: > ic_trans.doc_no]   -- Delivery Order doc_no (trans_flag=701)
+  item_code varchar(255) [ref: > ic_trans.doc_no]   -- Sale Invoice doc_no   (trans_flag=44)
 }
 ```
 
 ### Relationships
-- `ic_trans` (Invoice, trans_flag=44) ←→ `ic_trans` (Sale Order, trans_flag=36) : ผ่าน `ap_ar_trans_detail`
-  - `ap_ar_trans_detail.doc_no`     = Invoice No. (trans_flag=44)
-  - `ap_ar_trans_detail.billing_no` = Sale Order No. (trans_flag=36)
-- `pp_shipment` ←→ `ic_trans` (Invoice) : ผ่าน `pp_shipment_detail`
-  - `pp_shipment_detail.doc_no`     = Delivery Order doc_no
-  - `pp_shipment_detail.ref_doc_no` = Invoice No. (trans_flag=44)
+- Invoice (44) ←→ Sale Order (36) : ผ่าน `ap_ar_trans_detail`
+  - `ap_ar_trans_detail.doc_no`     = Invoice No.
+  - `ap_ar_trans_detail.billing_no` = Sale Order No.
+- Delivery (701) ←→ Invoice (44) : ผ่าน `ic_trans_detail`
+  - `ic_trans_detail.doc_no`    = Delivery Order doc_no
+  - `ic_trans_detail.item_code` = Invoice No.
 
 ---
 
@@ -198,10 +191,15 @@ sale-performance-track/
 ## Performance Measurement
 
 ```
-Start = ic_trans.doc_date + doc_time  WHERE doc_no = billing_no AND trans_flag = 36
-End   = pp_shipment.doc_date + doc_time  (linked via pp_shipment_detail.ref_doc_no = invoice_no)
+Start = ic_trans (trans_flag=36) doc_date + doc_time
+        linked via ap_ar_trans_detail: doc_no=Invoice → billing_no=SO
+        fallback = ic_trans (trans_flag=44) ถ้าไม่พบ SO
 
-Duration = End - Start
+End   = ic_trans (trans_flag=701) doc_date + doc_time
+        linked via ic_trans_detail: item_code=Invoice → doc_no=Delivery
+        fallback = new Date() (ปัจจุบัน) ถ้ายังไม่มี Delivery
+
+Duration = End - Start  (all timestamps in UTC, doc_time stored as UTC+7)
 ```
 
 ---
@@ -222,3 +220,4 @@ Duration = End - Start
 | 2026-03-17 | รวม `sale_order` + `sale_invoice` → `ic_trans` (trans_flag: 36/44) |
 | 2026-03-17 | เปลี่ยน `sale_invoice_ref` → `ap_ar_trans_detail` (billing_no แทน doc_ref_no) |
 | 2026-03-17 | เปลี่ยน `delivery_order` → `pp_shipment`, `delivery_order_detail` → `pp_shipment_detail` |
+| 2026-03-17 | เปลี่ยน Delivery: `pp_shipment`/`pp_shipment_detail` → `ic_trans` (trans_flag=701) + `ic_trans_detail` (item_code=Invoice) |

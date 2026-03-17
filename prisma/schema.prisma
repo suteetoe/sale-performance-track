@@ -7,7 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Sale Order (trans_flag=36) และ Sale Invoice (trans_flag=44) อยู่ใน table เดียวกัน
+// ─── ic_trans ───────────────────────────────────────────────────────────────
+// table เดียวเก็บหลายประเภทเอกสาร แยกด้วย trans_flag
+//   trans_flag = 36  → Sale Order
+//   trans_flag = 44  → Sale Invoice
+//   trans_flag = 701 → Delivery Order
 model IcTrans {
   doc_no     String   @db.VarChar(255)
   trans_flag Int
@@ -18,9 +22,10 @@ model IcTrans {
   @@map("ic_trans")
 }
 
+// ─── ap_ar_trans_detail ─────────────────────────────────────────────────────
 // เชื่อมโยง Sale Invoice → Sale Order
-// doc_no     = Sale Invoice doc_no (trans_flag=44)
-// billing_no = Sale Order doc_no   (trans_flag=36)
+//   doc_no     = Sale Invoice doc_no (trans_flag=44)
+//   billing_no = Sale Order doc_no   (trans_flag=36)
 model ApArTransDetail {
   roworder   Int    @id @default(autoincrement())
   doc_no     String @db.VarChar(50)
@@ -29,24 +34,14 @@ model ApArTransDetail {
   @@map("ap_ar_trans_detail")
 }
 
-// Delivery Order
-model DeliveryOrder {
-  doc_no   String                @id @db.VarChar(255)
-  doc_date DateTime              @db.Date
-  doc_time String                @db.VarChar(10)
-  details  DeliveryOrderDetail[]
+// ─── ic_trans_detail ────────────────────────────────────────────────────────
+// เชื่อมโยง Delivery Order → Sale Invoice
+//   doc_no    = Delivery Order doc_no (→ ic_trans trans_flag=701)
+//   item_code = Sale Invoice doc_no   (trans_flag=44)
+model IcTransDetail {
+  roworder  Int    @id @default(autoincrement())
+  doc_no    String @db.VarChar(255)
+  item_code String @db.VarChar(255)
 
-  @@map("pp_shipment")
-}
-
-// เชื่อมโยง Delivery → Sale Invoice
-// doc_no     = Delivery Order doc_no
-// ref_doc_no = Sale Invoice doc_no (trans_flag=44)
-model DeliveryOrderDetail {
-  roworder   Int           @id @default(autoincrement())
-  doc_no     String        @db.VarChar(255)
-  ref_doc_no String        @db.VarChar(255)
-  delivery   DeliveryOrder @relation(fields: [doc_no], references: [doc_no])
-
-  @@map("pp_shipment_detail")
+  @@map("ic_trans_detail")
 }

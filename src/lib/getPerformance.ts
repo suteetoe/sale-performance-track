@@ -3,6 +3,7 @@ import { combineDateTime, calcDuration, type Duration } from "@/lib/performance"
 
 const TRANS_FLAG_SALE_ORDER   = 36;
 const TRANS_FLAG_SALE_INVOICE = 44;
+const TRANS_FLAG_DELIVERY     = 701;
 
 export interface DocInfo {
   doc_no: string;
@@ -78,13 +79,20 @@ export async function getPerformance(invoiceNo: string): Promise<GetPerformanceR
     startDocType  = "sale_invoice";
   }
 
-  // 3. หา Delivery Order จาก pp_shipment_detail
-  const deliveryDetail = await prisma.deliveryOrderDetail.findFirst({
-    where: { ref_doc_no: invoiceNo },
-    include: { delivery: true },
+  // 3. หา Delivery Order ผ่าน ic_trans_detail
+  //    item_code = Invoice doc_no → doc_no = Delivery Order doc_no
+  const icTransDetail = await prisma.icTransDetail.findFirst({
+    where: { item_code: invoiceNo },
   });
 
-  if (!deliveryDetail) {
+  // 3b. ดึงข้อมูล Delivery Order จาก ic_trans (trans_flag=701)
+  const delivery = icTransDetail
+    ? await prisma.icTrans.findFirst({
+        where: { doc_no: icTransDetail.doc_no, trans_flag: TRANS_FLAG_DELIVERY },
+      })
+    : null;
+
+  if (!delivery) {
     // ยังไม่มี Delivery → in_progress: คำนวณ duration ถึงปัจจุบัน
     const durationToNow = calcDuration(startDateTime, new Date());
     return {
@@ -98,7 +106,6 @@ export async function getPerformance(invoiceNo: string): Promise<GetPerformanceR
   }
 
   // 4. completed
-  const { delivery } = deliveryDetail;
   const endDateTime = combineDateTime(delivery.doc_date, delivery.doc_time);
   const duration    = calcDuration(startDateTime, endDateTime);
 
