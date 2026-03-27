@@ -14,6 +14,7 @@ interface PerformanceCardProps {
 function formatThaiDateTime(datetime: string): string {
   const d = new Date(datetime);
   return d.toLocaleString("th-TH", {
+    timeZone: 'Asia/Bangkok',
     year: "numeric",
     month: "short",
     day: "numeric",
