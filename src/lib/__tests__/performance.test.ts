@@ -38,6 +38,40 @@ describe("combineDateTime", () => {
     const result = combineDateTime(midnightUTC("2024-01-15"), "09:33:45");
     expect(result.toISOString()).toBe("2024-01-15T02:33:45.000Z");
   });
+
+  it("เที่ยง 12:00 ICT → 05:00 UTC วันเดียวกัน", () => {
+    const result = combineDateTime(midnightUTC("2024-01-15"), "12:00");
+    expect(result.toISOString()).toBe("2024-01-15T05:00:00.000Z");
+  });
+
+  it("ข้ามปี: 01:00 ICT วันที่ 1 ม.ค. → 18:00 UTC วันที่ 31 ธ.ค. ปีก่อน", () => {
+    // เวลา 01:00 ICT = UTC ลบ 6 ชั่วโมง → 18:00 UTC ของ 31 Dec
+    const result = combineDateTime(midnightUTC("2024-01-01"), "01:00");
+    expect(result.toISOString()).toBe("2023-12-31T18:00:00.000Z");
+  });
+
+  it("ข้ามปีอธิกสุรทิน: 00:00 ICT วันที่ 1 มี.ค. 2024 → 17:00 UTC วันที่ 29 ก.พ. 2024", () => {
+    // 2024 เป็นปีอธิกสุรทิน (มี 29 Feb)
+    const result = combineDateTime(midnightUTC("2024-03-01"), "00:00");
+    expect(result.toISOString()).toBe("2024-02-29T17:00:00.000Z");
+  });
+
+  it("ไม่ควรแก้ไข date object ต้นฉบับ (immutability)", () => {
+    const original = midnightUTC("2024-01-15");
+    const originalISO = original.toISOString();
+    combineDateTime(original, "09:33");
+    expect(original.toISOString()).toBe(originalISO);
+  });
+
+  it("06:59 ICT → 23:59 UTC วันก่อน (boundary ก่อน 07:00)", () => {
+    const result = combineDateTime(midnightUTC("2024-01-15"), "06:59");
+    expect(result.toISOString()).toBe("2024-01-14T23:59:00.000Z");
+  });
+
+  it("07:01 ICT → 00:01 UTC วันเดียวกัน (boundary หลัง 07:00)", () => {
+    const result = combineDateTime(midnightUTC("2024-01-15"), "07:01");
+    expect(result.toISOString()).toBe("2024-01-15T00:01:00.000Z");
+  });
 });
 
 // ─── calcDuration ─────────────────────────────────────────────────────────────

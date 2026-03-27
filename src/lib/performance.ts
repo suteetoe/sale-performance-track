@@ -6,28 +6,19 @@ export interface Duration {
   label: string;
 }
 
-// doc_time ในฐานข้อมูลเก็บเป็นเวลาไทย (UTC+7)
-const TZ_OFFSET_HOURS = 7;
-
 /**
  * รวม doc_date (Date) + doc_time (string "HH:MM" หรือ "HH:MM:SS") เป็น Date object (UTC)
  *
  * doc_date จาก Prisma = midnight UTC ของวันนั้น
  * doc_time = เวลาในโซน UTC+7 (เวลาไทย)
- * → ใช้ setUTCHours และหัก offset 7 ชั่วโมง เพื่อให้ได้ UTC ที่ถูกต้อง
+ * → สร้าง ISO 8601 string พร้อม offset +07:00 แล้วให้ Date constructor แปลงเป็น UTC
  *
- * ตัวอย่าง: doc_time "09:33" ICT → 02:33 UTC
+ * ตัวอย่าง: doc_time "09:33" ICT → "2024-01-15T09:33:00+07:00" → 2024-01-15T02:33:00Z
  */
 export function combineDateTime(date: Date, time: string): Date {
-  const [hours, minutes, seconds] = time.split(":").map(Number);
-  const result = new Date(date); // copy midnight UTC
-  result.setUTCHours(
-    (hours ?? 0) - TZ_OFFSET_HOURS,
-    minutes ?? 0,
-    seconds ?? 0,
-    0,
-  );
-  return result;
+  const dateStr = date.toISOString().split("T")[0]; // "YYYY-MM-DD"
+  const timeStr = time.length === 5 ? `${time}:00` : time; // ให้มี seconds เสมอ
+  return new Date(`${dateStr}T${timeStr}+07:00`);
 }
 
 /**
